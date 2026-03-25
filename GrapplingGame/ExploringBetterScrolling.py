@@ -32,11 +32,24 @@ Window = pyglet.window.Window(vsync=False)
 Window.set_fullscreen(True)
 fps_display = pyglet.window.FPSDisplay(window=Window)
 
-Block = pyglet.image.load("Textures\BlockTexture32x32.png")
-Face = pyglet.image.load("Textures\FaceTexture32x32.png")
+Block = pyglet.image.load(r"Textures\Block.png")
+Face = pyglet.image.load(r"Textures\Face.png")
+Body = pyglet.image.load(r"Textures\body3.png")
+
 
 PlayerStuff = pyglet.graphics.Batch()
+CachingList = []
 
+        
+CachingList.append(pyglet.shapes.Circle(0,0,5,batch=PlayerStuff))#for the grappling hook
+CachingList.append(pyglet.shapes.Line(0, 0,0,0, thickness=2, color=(255, 0, 0),batch=PlayerStuff))#for the grappling line
+        
+CachingList.append(pyglet.shapes.Line(0, 0, 0, 0, thickness=2, color=(255, 0, 0),batch=PlayerStuff))#for the ray going towards the mouse
+
+#CachingList.append(pyglet.shapes.Rectangle(0,0,TileSize-4,TileSize-4,batch=PlayerStuff))#for the player hitbox
+CachingList.append(pyglet.sprite.Sprite(Block,0,0,batch=PlayerStuff))#for the player sprite
+CachingList.append(pyglet.sprite.Sprite(Face,0,0,batch=PlayerStuff))#for the player face
+    
 
 #making chunks
 class chunk():
@@ -44,11 +57,6 @@ class chunk():
         global TileSize, ChunkSize, TileMap
         self.batch = pyglet.graphics.Batch()
         self.tiles = np.zeros((ChunkSize,ChunkSize),dtype=object)
-
-        
-                        
-                       
-                    
 
     def draw(self):
         self.batch.draw()
@@ -60,21 +68,30 @@ for X in range(5):
     for Y in range(5):
         ChunkBank[X, Y] = chunk(X, Y)
 
-def Cast_Ray_For_Collision(X1, Y1, X2, Y2):
+def Cast_Ray_For_Collision(X1, Y1, X2, Y2,XY):
     global TileSize
-
+    dist = 0
     Collided = False
-    dist = math.sqrt(abs(X2-X1)**2+ abs(Y2-Y1)**2)
-    if dist == 0:
-        return (0,0,False)
+    if XY == "X":
+        if X1 < X2:
+            dist = abs(X1-X2)
+            MoveX = 1
+            MoveY = 0
+        else:
+            MoveX = -1
+            MoveY = 0
 
-    normanisedX = (X2-X1)/dist
-    normanisedY = (Y2-Y1)/dist
+    elif XY == "Y":
+        dist = abs(Y1-Y2)
+        if Y1 < Y2:
+            MoveX = 0
+            MoveY = 1
+        else:
+            MoveX = 0
+            MoveY = -1
+        
 
-    MoveX = normanisedX*1
-    MoveY = normanisedY*1
-
-    for Step in range(int(dist/1)+int(TileSize/2)):
+    for Step in range(int(dist)+int(TileSize/2)):
         RayX = X1 + MoveX * Step
         RayY = Y1 + MoveY * Step
 
@@ -102,7 +119,7 @@ def Check_Player_Collision():
     LastX = -LastCamX + Window.width / 2 
     LastY = -LastCamY + Window.height / 2
     
-    hitX, hitY, CollidiedX = Cast_Ray_For_Collision(LastX, LastY, playerX, LastY)
+    hitX, hitY, CollidiedX = Cast_Ray_For_Collision(LastX, LastY, playerX, LastY,"X")
     
     offset = int(TileSize/2)-2
 
@@ -122,7 +139,7 @@ def Check_Player_Collision():
     playerX = -CamX + Window.width / 2 
 
 
-    hitX, hitY, CollidiedY = Cast_Ray_For_Collision(playerX,LastY,playerX,playerY)
+    hitX, hitY, CollidiedY = Cast_Ray_For_Collision(playerX,LastY,playerX,playerY,"Y")
     
     if CollidiedY == "Block":
         
@@ -288,7 +305,6 @@ def update(dt):
 
         if W and TouchedFloor == True:#Movemeant checks
             Yvel-= 10
-            
         if A:
             Xvel+= 0.5
         if D:
@@ -337,16 +353,51 @@ def on_draw():
         playerY = -CamY + Window.height / 2
         rayX, rayY,Collided = Cast_Ray_For_Grappling_Hook(playerX, playerY, -CamX + MouseX, -CamY + MouseY)
         
-        CachingList = []
+        
 
         if Grappling == True:
-            CachingList.append(pyglet.shapes.Circle(GrapplingHookX,GrapplingHookY,5,batch=PlayerStuff))
-            CachingList.append(pyglet.shapes.Line(playerX, playerY,GrapplingHookX,GrapplingHookY, thickness=2, color=(255, 0, 0),batch=PlayerStuff))
-        else:
-            CachingList.append(pyglet.shapes.Line(playerX, playerY, rayX, rayY, thickness=2, color=(255, 0, 0),batch=PlayerStuff))
+            CachingList[0].batch = PlayerStuff#add back the grappling dot 
+            CachingList[1].batch = PlayerStuff #add the grapple line back
+            CachingList[2].batch = None # remove the mouse line from batch so we dont draw it
 
-        CachingList.append(pyglet.shapes.Rectangle(playerX-(TileSize/2)+2,playerY-(TileSize/2)+2,TileSize-4,TileSize-4,batch=PlayerStuff))
-        CachingList.append(pyglet.sprite.Sprite(Block,Window.width/2-CamX-16,Window.height/2-CamY-16,batch=PlayerStuff))
+            CachingList[0].x =GrapplingHookX#change the hook dot pos
+            CachingList[0].y =GrapplingHookY
+            
+            CachingList[1].x = playerX#change the grapple line pos
+            CachingList[1].y = playerY
+            CachingList[1].x2 = GrapplingHookX
+            CachingList[1].y2 = GrapplingHookY
+            
+        else:
+            CachingList[0].batch = None # remove the grappling dot from batch
+            CachingList[1].batch = None # remove the grappling line from batch
+            CachingList[2].batch = PlayerStuff#add back the mouse line to the batch
+
+            CachingList[2].x = playerX#change the mouse line pos
+            CachingList[2].y = playerY
+            CachingList[2].x2 = rayX
+            CachingList[2].y2 = rayY
+        
+        #CachingList[3].x = playerX-(TileSize/2)+2#change the player hitbox pos
+        #CachingList[3].y = playerY-(TileSize/2)+2
+        
+
+        
+        CachingList[3].x = Window.width/2-CamX-16#change the player sprite pos
+        CachingList[3].y = Window.height/2-CamY-16
+
+        SpriteX = (Window.width/2-CamX-16)
+        SpriteY = (Window.height/2-CamY-16)
+
+        dist = math.sqrt(abs((SpriteX-(MouseX-CamX))**2) + abs((SpriteY-(MouseY-CamY))**2))
+    
+
+        normanisedX = (((MouseX-CamX) - SpriteX))/dist
+        normanisedY = (((MouseY-CamY) - SpriteY))/dist
+
+        CachingList[4].x = SpriteX+normanisedX*5#change the player sprite pos
+        CachingList[4].y = SpriteY+normanisedY*5
+        
         PlayerStuff.draw()
     
         
@@ -354,6 +405,7 @@ def on_draw():
     Window.view = pyglet.math.Mat4()#reseting the camera
     if Mode == 2:
         pyglet.shapes.Rectangle(Window.width-50,0,50,50,color=(int(TileType*40),50,50)).draw()
+
     fps_display.draw()
     
-pyglet.app.run(1/820)
+pyglet.app.run(0)
